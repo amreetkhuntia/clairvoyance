@@ -4,7 +4,7 @@ Implementation guide for outbound call frequency tracking.
 
 ## Status
 
-Phase 1 — **alert only**. Calls are tracked and Slack alerts fire when the limit is exceeded, but no calls are blocked. Rate limiting (blocking) is not yet implemented.
+Phase 2 — **configurable blocking**. When `OUTBOUND_RATE_LIMIT_BLOCK_ENABLED` is `True` (default: `False`), calls exceeding the rate limit are blocked. When `False`, the system operates in Phase 1 alert-only mode — calls are tracked and Slack alerts fire when the limit is exceeded, but no calls are blocked.
 
 ## Overview
 
@@ -16,8 +16,9 @@ Environment variables (global, applies to all resellers/templates):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OUTBOUND_RATE_LIMIT_MAX_CALLS` | `7` | Max calls per window before alerting |
+| `OUTBOUND_RATE_LIMIT_MAX_CALLS` | `7` | Max calls per window before alerting/blocking |
 | `OUTBOUND_RATE_LIMIT_WINDOW_SECONDS` | `3600` | Sliding window duration in seconds |
+| `OUTBOUND_RATE_LIMIT_BLOCK_ENABLED` | `False` | When `True`, block calls exceeding limit. When `False`, alert only. |
 
 ## Data Structure
 
@@ -61,7 +62,7 @@ return count
 
 ## Integration
 
-The check runs in `process_backlog_leads()` just before `make_call()`, after all pre-call validations (blacklist, calling hours, pre-checks, phone validation) have passed. On limit exceeded: logs a warning and sends a Slack alert. The call proceeds regardless.
+The check runs in `process_backlog_leads()` just before `make_call()`, after all pre-call validations (blacklist, calling hours, pre-checks, phone validation) have passed. On limit exceeded: logs a warning and sends a Slack alert. If `OUTBOUND_RATE_LIMIT_BLOCK_ENABLED` is `True`, the call is skipped and the lead is released. Otherwise, the call proceeds.
 
 ## Key Decisions
 

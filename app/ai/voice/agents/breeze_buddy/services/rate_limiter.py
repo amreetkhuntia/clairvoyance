@@ -63,16 +63,20 @@ async def check_outbound_rate_limit(
         return False, 0
 
 
-async def process_outbound_rate_limit_alert(
+async def check_outbound_rate_limit_and_alert(
     customer_phone: str,
     lead_id: str,
     reseller_id: str,
-) -> None:
+) -> bool:
     """
-    Fire-and-forget: track an outbound call and send a Slack alert if the
-    rate limit is exceeded. Callers should wrap this in asyncio.create_task().
+    Track an outbound call and check if the rate limit is exceeded.
+
+    Returns False if the call should be blocked (block enabled + limit exceeded).
+    Returns True if the call may proceed.
+    Always sends a Slack alert when the limit is exceeded.
     """
     try:
+        block_enabled = await dyn_cfg.OUTBOUND_RATE_LIMIT_BLOCK_ENABLED()
         max_calls = await dyn_cfg.OUTBOUND_RATE_LIMIT_MAX_CALLS()
         window_seconds = await dyn_cfg.OUTBOUND_RATE_LIMIT_WINDOW_SECONDS()
 
@@ -84,14 +88,15 @@ async def process_outbound_rate_limit_alert(
             masked_phone = (
                 f"***{customer_phone[-4:]}" if len(customer_phone) >= 4 else "***"
             )
+            action = "BLOCKED" if block_enabled else "ALERT_ONLY"
             logger.warning(
                 f"[OUTBOUND_RATE_LIMIT] Limit exceeded for "
                 f"{masked_phone} - {count + 1}/{max_calls} "
                 f"calls in {window_seconds}s "
-                f"(lead: {lead_id})"
+                f"(lead: {lead_id}, action: {action})"
             )
             await slack_alert.send(
-                title="Outbound Rate Limit Exceeded",
+                title=f"Outbound Rate Limit Exceeded ({action})",
                 fields=[
                     {"name": "Phone (last 4)", "value": masked_phone},
                     {
@@ -104,7 +109,11 @@ async def process_outbound_rate_limit_alert(
                     },
                     {"name": "Lead ID", "value": lead_id},
                     {"name": "Reseller", "value": reseller_id},
+                    {"name": "Action", "value": action},
                 ],
             )
+            return not block_enabled
+        return True
     except Exception as e:
-        logger.warning(f"[OUTBOUND_RATE_LIMIT] Error in background alert task: {e}")
+        logger.warning(f"[OUTBOUND_RATE_LIMIT] Error in rate limit check: {e}")
+        return True

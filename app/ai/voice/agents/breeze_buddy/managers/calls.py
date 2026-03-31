@@ -2,7 +2,6 @@
 Cron manager for handling background tasks.
 """
 
-import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -15,7 +14,7 @@ from app.ai.voice.agents.breeze_buddy.services.agent_router.client import (
     safe_release_pod,
 )
 from app.ai.voice.agents.breeze_buddy.services.rate_limiter import (
-    process_outbound_rate_limit_alert,
+    check_outbound_rate_limit_and_alert,
 )
 from app.ai.voice.agents.breeze_buddy.services.telephony.exotel.recording import (
     download_call_recording as download_call_recording_exotel,
@@ -530,13 +529,15 @@ async def process_backlog_leads():
                     await _release_number(number_to_use.id, number_to_use.provider)
                     await release_lock_on_lead_by_id(locked_lead.id)
                     continue
-                _rate_limit_task = asyncio.create_task(
-                    process_outbound_rate_limit_alert(
-                        customer_phone=customer_mobile,
-                        lead_id=str(locked_lead.id),
-                        reseller_id=locked_lead.reseller_id,
-                    )
+                _rate_limit_allowed = await check_outbound_rate_limit_and_alert(
+                    customer_phone=customer_mobile,
+                    lead_id=str(locked_lead.id),
+                    reseller_id=locked_lead.reseller_id,
                 )
+                if not _rate_limit_allowed:
+                    await _release_number(number_to_use.id, number_to_use.provider)
+                    await release_lock_on_lead_by_id(locked_lead.id)
+                    continue
                 call = call_provider.make_call(
                     customer_mobile,
                     number_to_use.number,

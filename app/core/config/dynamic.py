@@ -328,3 +328,8 @@ async def OUTBOUND_RATE_LIMIT_MAX_CALLS() -> int:
 async def OUTBOUND_RATE_LIMIT_WINDOW_SECONDS() -> int:
     """Returns OUTBOUND_RATE_LIMIT_WINDOW_SECONDS from Redis"""
     return await get_config("OUTBOUND_RATE_LIMIT_WINDOW_SECONDS", 3600, int)
+
+
+async def OUTBOUND_RATE_LIMIT_BLOCK_ENABLED() -> bool:
+    """Returns OUTBOUND_RATE_LIMIT_BLOCK_ENABLED from Redis"""
+    return await get_config("OUTBOUND_RATE_LIMIT_BLOCK_ENABLED", False, bool)
