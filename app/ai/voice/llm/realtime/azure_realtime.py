@@ -8,7 +8,7 @@ can be used with the same direct-mode + S2S wiring as the OpenAI path.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from pipecat.services.azure.realtime.llm import AzureRealtimeLLMService
 from pipecat.services.openai.realtime.events import (
@@ -32,12 +32,16 @@ class AzureRealtimeConfig:
 
     ``base_url`` is the full Azure WebSocket endpoint URL including the
     ``api-version`` query parameter and the ``deployment`` name; the
-    deployment effectively selects the underlying realtime model, so there
-    is no separate ``model`` field.
+    deployment effectively selects the underlying realtime model.
+
+    ``model`` is an optional label that, when set, is passed to pipecat's
+    ``Settings.model`` so that metrics and logs correctly reflect which model
+    is running.  It does not alter the connection URL.
     """
 
     api_key: str
     base_url: str
+    model: Optional[str] = None
     voice: Optional[str] = None
     function_call_timeout_secs: float = 10.0
 
@@ -61,16 +65,22 @@ def build_azure_realtime_llm(config: AzureRealtimeConfig) -> AzureRealtimeLLMSer
         audio=AudioConfiguration(input=audio_input, output=audio_output),
     )
 
+    # Pipecat initialises Settings with a hardcoded model default
+    # ("gpt-realtime-1.5") and reads that value for metrics labels.  Pass the
+    # template-supplied model name through so metrics correctly reflect what is
+    # running instead of the pipecat default.
+    settings_kwargs: dict[str, Any] = dict(session_properties=session_properties)
+    if config.model:
+        settings_kwargs["model"] = config.model
+
     logger.info(
         f"Building Azure Realtime LLM service with base_url={config.base_url}, "
-        f"voice={config.voice or 'default'}"
+        f"model={config.model or 'default'}, voice={config.voice or 'default'}"
     )
 
     return AzureRealtimeLLMService(
         api_key=config.api_key,
         base_url=config.base_url,
-        settings=AzureRealtimeLLMService.Settings(
-            session_properties=session_properties,
-        ),
+        settings=AzureRealtimeLLMService.Settings(**settings_kwargs),
         function_call_timeout_secs=config.function_call_timeout_secs,
     )

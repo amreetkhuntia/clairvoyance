@@ -116,18 +116,16 @@ async def get_realtime_llm_service(llm_config: LLMConfiguration) -> Any:
                 "via llm_configurations.realtime.endpoint on the template or "
                 "via AZURE_OPENAI_REALTIME_ENDPOINT in Redis dynamic config"
             )
-        # Note: deployment name is encoded in base_url, so realtime.model is
-        # accepted for symmetry but ignored. Deploy a different model by
-        # changing the Azure deployment in the URL.
         azure_config = AzureRealtimeConfig(
             api_key=api_key,
             base_url=base_url,
+            model=realtime.model,
             voice=realtime.voice,
             function_call_timeout_secs=function_call_timeout,
         )
         logger.info(
             f"Resolving Azure Realtime LLM service: base_url={azure_config.base_url}, "
-            f"voice={azure_config.voice or 'default'}"
+            f"model={azure_config.model or 'default'}, voice={azure_config.voice or 'default'}"
         )
         return build_azure_realtime_llm(azure_config)
 
